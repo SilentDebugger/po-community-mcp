@@ -1,10 +1,17 @@
 {
-  "name": "darenasolutions-default-server-ts",
+  "name": "po-community-mcp",
   "version": "1.0.0",
-  "description": "Package that contains the default MCP server for typescript",
-  "main": "index.ts",
+  "description": "DischargePlus — FHIR-powered MCP tools for discharge workflows",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "npx tsx index.ts",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

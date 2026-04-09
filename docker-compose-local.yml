@@ -4,6 +4,10 @@ services:
   typescript:
     restart: always
     build:
-      dockerfile: ./typescript/Dockerfile
+      context: ./typescript
+      dockerfile: Dockerfile
     ports:
       - "55000:5000"
+    environment:
+      - PO_ENV=local
+      - LOG_LEVEL=debug
