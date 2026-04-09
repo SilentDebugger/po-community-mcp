@@ -1,17 +1,212 @@
+import { differenceInDays, differenceInYears, format } from "date-fns";
+import { fhirR4 } from "@smile-cdr/fhirts";
 import {
   DischargeInstructionsInput,
   DischargeInstructionsResult,
+  MedicationInstruction,
+  ReadingLevel,
 } from "./types";
+import {
+  ACTIVITY_RESTRICTIONS,
+  DIET_GUIDANCE,
+  MED_INSTRUCTIONS,
+  WARNING_SIGNS,
+} from "../../data";
+
+// ── Private helpers ───────────────────────────────────────────────────────────
+
+function toDate(value: string | Date): Date {
+  return value instanceof Date ? value : new Date(value);
+}
+
+function formatPatientName(patient: fhirR4.Patient): string {
+  const name = patient.name?.[0];
+  if (!name) return "the patient";
+  const given = name.given?.join(" ") ?? "";
+  const family = name.family ?? "";
+  return [given, family].filter(Boolean).join(" ") || "the patient";
+}
+
+function extractSnomedCodes(conditions: fhirR4.Condition[]): string[] {
+  return conditions.flatMap(
+    (c) =>
+      c.code?.coding
+        ?.filter((coding) => coding.system === "http://snomed.info/sct" && coding.code)
+        .map((coding) => coding.code as string) ?? [],
+  );
+}
+
+// ── Section builders ──────────────────────────────────────────────────────────
+
+function buildVisitSummary(
+  patient: fhirR4.Patient,
+  encounter: fhirR4.Encounter,
+  conditions: fhirR4.Condition[],
+  procedures: fhirR4.Procedure[],
+  level: ReadingLevel,
+): string {
+  const name = formatPatientName(patient);
+  const age = patient.birthDate
+    ? differenceInYears(new Date(), toDate(patient.birthDate))
+    : null;
+
+  const admitDate = encounter.period?.start ? toDate(encounter.period.start) : null;
+  const dischargeDate = encounter.period?.end ? toDate(encounter.period.end) : new Date();
+  const los = admitDate ? differenceInDays(dischargeDate, admitDate) : null;
+
+  const conditionNames = conditions
+    .map((c) => c.code?.text ?? c.code?.coding?.[0]?.display ?? "")
+    .filter(Boolean);
+  const procedureNames = procedures
+    .map((p) => p.code?.text ?? p.code?.coding?.[0]?.display ?? "")
+    .filter(Boolean);
+
+  if (level === "simple") {
+    const parts = [`${name} was in the hospital`];
+    if (los !== null) parts.push(`for ${los} day${los !== 1 ? "s" : ""}`);
+    if (conditionNames.length > 0) parts.push(`for ${conditionNames[0]}`);
+    return parts.join(" ") + ". You are now ready to go home.";
+  }
+
+  if (level === "standard") {
+    const agePart = age !== null ? `, ${age} years old,` : "";
+    const losPart = admitDate
+      ? `admitted on ${format(admitDate, "MMMM d, yyyy")}`
+      : "recently admitted";
+    const condPart =
+      conditionNames.length > 0 ? `Conditions treated: ${conditionNames.join(", ")}.` : "";
+    const procPart =
+      procedureNames.length > 0 ? ` Procedures performed: ${procedureNames.join(", ")}.` : "";
+    return (
+      `${name}${agePart} was ${losPart} and is being discharged today. ` +
+      condPart +
+      procPart +
+      " Please follow all instructions in this document carefully."
+    );
+  }
+
+  // detailed
+  const lines = [
+    `Patient: ${age !== null ? `${age}-year-old ` : ""}${name}`,
+    admitDate ? `Admission date: ${format(admitDate, "MMMM d, yyyy")}` : "",
+    `Discharge date: ${format(dischargeDate, "MMMM d, yyyy")}`,
+    los !== null ? `Length of stay: ${los} day${los !== 1 ? "s" : ""}` : "",
+    conditionNames.length > 0 ? `Active diagnoses: ${conditionNames.join("; ")}.` : "",
+    procedureNames.length > 0
+      ? `Procedures performed during admission: ${procedureNames.join("; ")}.`
+      : "",
+  ];
+  return lines.filter(Boolean).join("\n");
+}
+
+function buildMedicationInstructions(
+  medicationRequests: fhirR4.MedicationRequest[],
+  level: ReadingLevel,
+): MedicationInstruction[] {
+  return medicationRequests.map((req) => {
+    const coding = req.medicationCodeableConcept?.coding ?? [];
+    const rxNormCoding = coding.find(
+      (c) => c.system === "http://www.nlm.nih.gov/research/umls/rxnorm",
+    );
+    const rxNormCode = rxNormCoding?.code ?? "";
+    const medName =
+      req.medicationCodeableConcept?.text ??
+      rxNormCoding?.display ??
+      coding[0]?.display ??
+      "Unknown medication";
+
+    const instruction = rxNormCode ? MED_INSTRUCTIONS[rxNormCode] : undefined;
+    const purpose = instruction?.purpose ?? "As directed by your doctor";
+    const notes =
+      level === "simple"
+        ? (instruction?.simpleNotes ?? instruction?.notes ?? "Ask your pharmacist if you have questions about this medication.")
+        : (instruction?.notes ?? "Ask your pharmacist if you have questions about this medication.");
+
+    const dosageInstruction = req.dosageInstruction?.[0];
+    const doseQuantity = dosageInstruction?.doseAndRate?.[0]?.doseQuantity;
+    const dosage = doseQuantity
+      ? `${doseQuantity.value ?? ""} ${doseQuantity.unit ?? ""}`.trim()
+      : (dosageInstruction?.text ?? "As directed");
+
+    const repeat = dosageInstruction?.timing?.repeat;
+    const frequency =
+      repeat?.frequency && repeat?.period && repeat?.periodUnit
+        ? `${repeat.frequency} time(s) per ${repeat.period} ${repeat.periodUnit}`
+        : (dosageInstruction?.timing?.code?.text ?? "As directed");
+
+    return {
+      name: medName,
+      dosage,
+      frequency,
+      instructions: [purpose, notes].filter(Boolean).join(". "),
+    };
+  });
+}
+
+function buildWarningSigns(conditions: fhirR4.Condition[]): string[] {
+  const codes = extractSnomedCodes(conditions);
+  const defaultSigns = WARNING_SIGNS["default"] ?? [];
+  const seen = new Set<string>();
+  const lines: string[] = [];
+
+  const addLines = (entries: string[]) => {
+    for (const line of entries) {
+      if (!seen.has(line)) {
+        seen.add(line);
+        lines.push(line);
+      }
+    }
+  };
+
+  if (codes.length === 0) return (addLines(defaultSigns), lines);
+
+  for (const code of codes) {
+    addLines(WARNING_SIGNS[code] ?? defaultSigns);
+  }
+  return lines;
+}
+
+function buildActivityRestrictions(conditions: fhirR4.Condition[]): string[] {
+  const codes = extractSnomedCodes(conditions);
+  const defaultActivity = ACTIVITY_RESTRICTIONS["default"] ?? [];
+  const seen = new Set<string>();
+  const lines: string[] = [];
+
+  if (codes.length === 0) return defaultActivity;
+
+  for (const code of codes) {
+    for (const line of ACTIVITY_RESTRICTIONS[code] ?? defaultActivity) {
+      if (!seen.has(line)) {
+        seen.add(line);
+        lines.push(line);
+      }
+    }
+  }
+  return lines;
+}
+
+function buildDietGuidance(conditions: fhirR4.Condition[]): string {
+  const codes = extractSnomedCodes(conditions);
+  const defaultDiet = DIET_GUIDANCE["default"] ?? "Eat a balanced diet. Stay hydrated.";
+
+  for (const code of codes) {
+    const guidance = DIET_GUIDANCE[code];
+    if (guidance) return guidance;
+  }
+  return defaultDiet;
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
 
 export function generateDischargeInstructions(
-  _input: DischargeInstructionsInput,
+  input: DischargeInstructionsInput,
 ): DischargeInstructionsResult {
-  // TODO: Implement discharge instruction generation
-  // 1. Build visit summary from encounter + conditions + procedures
-  // 2. Generate medication instructions from med-instructions.ts lookup
-  // 3. Map conditions to warning signs from warning-signs.ts
-  // 4. Map conditions/procedures to activity restrictions
-  // 5. Map conditions to diet guidance
-  // 6. Adjust output based on readingLevel (simple/standard/detailed)
-  throw new Error("Not implemented");
+  const { readingLevel, patient, encounter, conditions, procedures, medicationRequests } = input;
+  return {
+    visitSummary: buildVisitSummary(patient, encounter, conditions, procedures, readingLevel),
+    medications: buildMedicationInstructions(medicationRequests, readingLevel),
+    warningSigns: buildWarningSigns(conditions),
+    activityRestrictions: buildActivityRestrictions(conditions),
+    dietGuidance: buildDietGuidance(conditions),
+  };
 }
