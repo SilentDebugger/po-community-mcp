@@ -33,9 +33,9 @@ class FollowUpPlanTool implements IMcpTool {
 
         const [conditions, procedures, observations, carePlans] =
           await Promise.all([
-            getConditions(req, id),
-            getProcedures(req, id),
-            getObservations(req, id),
+            getConditions(req, id, ["clinical-status=active"]),
+            getProcedures(req, id, ["_sort=-date", "_count=10"]),
+            getObservations(req, id, ["category=laboratory", "_sort=-date", "_count=20"]),
             getCarePlans(req, id),
           ]);
 
