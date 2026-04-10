@@ -16,6 +16,7 @@ export interface FollowUpItem {
 
 export interface FollowUpPlanResult {
   followUpItems: FollowUpItem[];
+  readmissionRiskNote: string;
 }
 
 export interface FollowUpPlanInput {
@@ -24,3 +25,4 @@ export interface FollowUpPlanInput {
   observations: fhirR4.Observation[];
   carePlans: fhirR4.CarePlan[];
 }
+
