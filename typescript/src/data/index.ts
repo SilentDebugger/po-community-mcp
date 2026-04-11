@@ -2,11 +2,13 @@ export { CHARLSON_CONDITIONS } from "./charlson-mapping";
 export type { CharlsonCondition } from "./charlson-mapping";
 
 export {
+  COST_TIERS,
   KNOWN_GENERICS,
   KNOWN_BRAND_TO_GENERIC,
-  COST_TIER_MONTHLY_ESTIMATE,
+  estimateMonthlySavings,
+  DISCLAIMER,
 } from "./cost-tiers";
-export type { CostTier } from "./cost-tiers";
+export type { DrugTier, CostTierEntry, GenericAlternative } from "./cost-tiers";
 
 export {
   CONDITION_FOLLOW_UP_RULES,
