@@ -72,28 +72,14 @@ export const KNOWN_BRAND_TO_GENERIC: Record<string, GenericAlternative> = {
   "312961": { rxnorm: "312960", name: "Simvastatin 20mg", tier: "generic" },
   // Norvasc 5mg → Amlodipine 5mg
   "308135": { rxnorm: "197361", name: "Amlodipine 5mg", tier: "generic" },
-  // Zestril 10mg → Lisinopril 10mg
-  "314076": { rxnorm: "314076", name: "Lisinopril 10mg", tier: "generic" },
   // Cozaar 50mg → Losartan 50mg
   "203160": { rxnorm: "203159", name: "Losartan 50mg", tier: "generic" },
-  // Lasix 40mg → Furosemide 40mg
-  "202991": { rxnorm: "202991", name: "Furosemide 40mg", tier: "generic" },
-  // Glucophage 500mg → Metformin 500mg
-  "860975": { rxnorm: "860975", name: "Metformin 500mg", tier: "generic" },
-  // Coumadin 5mg → Warfarin 5mg
-  "855332": { rxnorm: "855332", name: "Warfarin 5mg", tier: "generic" },
   // Eliquis 5mg — no generic available (patent-protected as of 2026)
   // Xarelto 20mg — no generic available
   // Advair Diskus → Fluticasone/Salmeterol (generic available)
   "896766": { rxnorm: "896767", name: "Fluticasone/Salmeterol (generic)", tier: "generic" },
-  // Prilosec 20mg → Omeprazole 20mg
-  "40790": { rxnorm: "40790", name: "Omeprazole 20mg", tier: "generic" },
-  // Protonix 40mg → Pantoprazole 40mg
-  "114979": { rxnorm: "114979", name: "Pantoprazole 40mg", tier: "generic" },
   // Zoloft 50mg → Sertraline 50mg
   "312938": { rxnorm: "312937", name: "Sertraline 50mg", tier: "generic" },
-  // Synthroid 50mcg → Levothyroxine 50mcg
-  "196429": { rxnorm: "196429", name: "Levothyroxine 50mcg", tier: "generic" },
   // Neurontin 300mg → Gabapentin 300mg
   "196961": { rxnorm: "196960", name: "Gabapentin 300mg", tier: "generic" },
 };
