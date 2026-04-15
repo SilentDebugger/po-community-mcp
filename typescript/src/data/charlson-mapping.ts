@@ -83,11 +83,11 @@ export const CHARLSON_MAP: Record<string, CharlsonEntry> = {
   // 73211009 is intentionally excluded here; it maps to the 2-point complications entry below.
   "44054006":  { category: "Diabetes mellitus (uncomplicated)", points: 1 },
 
+  // ── 2-point conditions ─────────────────────────────────────────────────
+
   // Hemiplegia / paraplegia
   "50582007":  { category: "Hemiplegia or hemiparesis", points: 2 },
   "60454009":  { category: "Hemiplegia or hemiparesis", points: 2, notes: "Paraplegia" },
-
-  // ── 2-point conditions ─────────────────────────────────────────────────
 
   // Diabetes with end-organ damage (complications)
   // 73211009 maps here (2 pts). Do NOT add it to the uncomplicated section above.
@@ -139,10 +139,12 @@ export function charlsonSumToLaceC(charlsonSum: number): number {
   return 5; // 4 or more → 5 points
 }
 
+const SNOMED_SYSTEM = "http://snomed.info/sct";
+
 /**
  * Extracts the primary SNOMED code from a FHIR CodeableConcept.
  * Returns undefined if no SNOMED code is found.
  */
-export function getSnomedCode(coding?: Array<{ system?: string; code: string }>): string | undefined {
-  return coding?.find(c => c.system?.includes("snomed"))?.code;
+export function getSnomedCode(coding?: Array<{ system?: string; code?: string }>): string | undefined {
+  return coding?.find(c => c.system === SNOMED_SYSTEM && !!c.code)?.code;
 }

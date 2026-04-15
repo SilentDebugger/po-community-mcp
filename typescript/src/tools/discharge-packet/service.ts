@@ -42,7 +42,7 @@ export async function buildDischargePacket(
     runSafe(() =>
       assessReadmissionRisk({
         encounter: data.encounter,
-        allEncounters: data.allEncounters,
+        erEncounters: data.erEncounters,
         conditions: data.conditions,
       }),
     ),
