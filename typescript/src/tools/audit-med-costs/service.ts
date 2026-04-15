@@ -1,63 +1,76 @@
 import { AuditMedCostsInput, AuditMedCostsResult, SavingsOpportunity } from "./types";
 import {
-  COST_TIERS,
   DISCLAIMER,
   KNOWN_BRAND_TO_GENERIC,
   KNOWN_GENERICS,
-  DrugTier,
+  estimateMonthlySavings,
 } from "../../data/cost-tiers";
 import { getRelatedGenerics } from "../../external/rxnav/client";
+import { fhirR4 } from "@smile-cdr/fhirts";
+import { RxNavRelatedGroup } from "../../external/rxnav/types";
 
 const RXNORM_SYSTEM = "http://www.nlm.nih.gov/research/umls/rxnorm";
 
-function midpoint(tier: DrugTier): number {
-  return (COST_TIERS[tier].min + COST_TIERS[tier].max) / 2;
+interface ParsedMed {
+  name: string;
+  rxcui: string;
 }
 
-export async function auditMedCosts(input: AuditMedCostsInput): Promise<AuditMedCostsResult> {
-  const { medicationRequests, allergyIntolerances } = input;
+function parseMedication(med: fhirR4.MedicationRequest): ParsedMed | null {
+  const concept = med.medicationCodeableConcept;
+  const rxnormCoding = concept?.coding?.find((c) => c.system === RXNORM_SYSTEM);
+  const name = concept?.text ?? rxnormCoding?.display ?? "Unknown medication";
+  const rxcui = rxnormCoding?.code;
+  return rxcui ? { name, rxcui } : null;
+}
 
-  // Build a set of RxNorm codes the patient is allergic to
-  const allergyRxCuis = new Set<string>();
+function buildAllergySet(allergyIntolerances: fhirR4.AllergyIntolerance[]): Set<string> {
+  const rxcuis = new Set<string>();
   for (const allergy of allergyIntolerances) {
     for (const reaction of allergy.reaction ?? []) {
       for (const coding of reaction.substance?.coding ?? []) {
         if (coding.system === RXNORM_SYSTEM && coding.code) {
-          allergyRxCuis.add(coding.code);
+          rxcuis.add(coding.code);
         }
       }
     }
   }
+  return rxcuis;
+}
+
+export async function auditMedCosts(input: AuditMedCostsInput): Promise<AuditMedCostsResult> {
+  const { medicationRequests, allergyIntolerances } = input;
+  const allergyRxCuis = buildAllergySet(allergyIntolerances);
 
   const savingsOpportunities: SavingsOpportunity[] = [];
   const noChangeNeeded: string[] = [];
-  let rxnavUnreachable = false;
+  const unanalyzed: string[] = [];
+
+  // Phase 1: categorize meds using local data; collect those needing RxNav
+  const needsRxNav: ParsedMed[] = [];
 
   for (const med of medicationRequests) {
-    const concept = med.medicationCodeableConcept;
-    const rxnormCoding = concept?.coding?.find((c) => c.system === RXNORM_SYSTEM);
-    const name = concept?.text ?? rxnormCoding?.display ?? "Unknown medication";
-    const rxcui = rxnormCoding?.code;
-
-    if (!rxcui) {
+    const parsed = parseMedication(med);
+    if (!parsed) {
+      const name = med.medicationCodeableConcept?.text ?? "Unknown medication";
       noChangeNeeded.push(name);
       continue;
     }
 
-    // Already a known generic — no savings opportunity
+    const { name, rxcui } = parsed;
+
     if (KNOWN_GENERICS.has(rxcui)) {
       noChangeNeeded.push(name);
       continue;
     }
 
-    // Fast path: known brand→generic mapping (no network call needed)
     const knownGeneric = KNOWN_BRAND_TO_GENERIC[rxcui];
     if (knownGeneric) {
       if (allergyRxCuis.has(knownGeneric.rxnorm)) {
         noChangeNeeded.push(name);
         continue;
       }
-      const savings = Math.round(midpoint("non_preferred_brand") - midpoint(knownGeneric.tier));
+      const savings = estimateMonthlySavings("non_preferred_brand", knownGeneric.tier);
       if (savings > 0) {
         savingsOpportunities.push({
           currentMedication: name,
@@ -71,46 +84,48 @@ export async function auditMedCosts(input: AuditMedCostsInput): Promise<AuditMed
       continue;
     }
 
-    // RxNav lookup: fetches both SBD (brand) and SCD (generic) related drugs
-    const related = await getRelatedGenerics(rxcui);
+    needsRxNav.push(parsed);
+  }
 
-    if (related.length === 0) {
-      // Empty result means RxNav was unreachable (client returns [] on any error)
+  // Phase 2: parallel RxNav lookups
+  const rxnavResults = await Promise.all(
+    needsRxNav.map(async (med) => ({
+      med,
+      related: await getRelatedGenerics(med.rxcui),
+    })),
+  );
+
+  let rxnavUnreachable = false;
+
+  for (const { med, related } of rxnavResults) {
+    if (related === null) {
       rxnavUnreachable = true;
-      noChangeNeeded.push(name);
+      unanalyzed.push(med.name);
       continue;
     }
 
-    // If this drug itself is listed as SCD, it is already a generic
-    if (related.some((r) => r.rxcui === rxcui && r.tty === "SCD")) {
-      noChangeNeeded.push(name);
+    if (related.some((r) => r.rxcui === med.rxcui && r.tty === "SCD")) {
+      noChangeNeeded.push(med.name);
       continue;
     }
 
-    // Extract dose from current med name (e.g. "20 MG") to avoid suggesting a different strength
-    const doseStr = name.match(/(\d+(?:\.\d+)?)\s*MG/i)?.[1] ?? null;
+    const doseStr = med.name.match(/(\d+(?:\.\d+)?)\s*MG/i)?.[1] ?? null;
 
-    // Find the first safe generic at the same dose
-    const genericAlt = related.find(
-      (r) =>
-        r.tty === "SCD" &&
-        !allergyRxCuis.has(r.rxcui) &&
-        (doseStr === null || r.name.includes(doseStr)),
-    );
+    const genericAlt = findSafeGeneric(related, allergyRxCuis, doseStr);
     if (genericAlt) {
-      const savings = Math.round(midpoint("non_preferred_brand") - midpoint("generic"));
+      const savings = estimateMonthlySavings("non_preferred_brand", "generic");
       if (savings > 0) {
         savingsOpportunities.push({
-          currentMedication: name,
+          currentMedication: med.name,
           suggestedAlternative: genericAlt.name,
           estimatedMonthlySavings: savings,
           reason: "Switch from brand-name to generic equivalent",
         });
       } else {
-        noChangeNeeded.push(name);
+        noChangeNeeded.push(med.name);
       }
     } else {
-      noChangeNeeded.push(name);
+      noChangeNeeded.push(med.name);
     }
   }
 
@@ -120,8 +135,21 @@ export async function auditMedCosts(input: AuditMedCostsInput): Promise<AuditMed
   );
 
   const disclaimer = rxnavUnreachable
-    ? `${DISCLAIMER} Cost analysis unavailable — external drug database unreachable`
+    ? `${DISCLAIMER} Note: some medications could not be analyzed because the external drug database was unreachable.`
     : DISCLAIMER;
 
-  return { savingsOpportunities, totalEstimatedMonthlySavings, noChangeNeeded, disclaimer };
+  return { savingsOpportunities, totalEstimatedMonthlySavings, noChangeNeeded, unanalyzed, disclaimer };
+}
+
+function findSafeGeneric(
+  related: RxNavRelatedGroup[],
+  allergyRxCuis: Set<string>,
+  doseStr: string | null,
+): RxNavRelatedGroup | undefined {
+  return related.find(
+    (r) =>
+      r.tty === "SCD" &&
+      !allergyRxCuis.has(r.rxcui) &&
+      (doseStr === null || r.name.includes(doseStr)),
+  );
 }

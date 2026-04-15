@@ -101,32 +101,29 @@ export const KNOWN_GENERICS = new Set<string>([
   "855332",  // Warfarin 5mg
   "40790",   // Omeprazole 20mg
   "114979",  // Pantoprazole 40mg
-  "312938",  // Sertraline 50mg (generic)
+  "312937",  // Sertraline 50mg
   "196429",  // Levothyroxine
-  "196961",  // Gabapentin
+  "196960",  // Gabapentin 300mg
   "198440",  // Acetaminophen 500mg
   "197806",  // Ibuprofen 400mg
   "310489",  // Glipizide
   "243670",  // Aspirin 81mg
-  "203160",  // Losartan 50mg
+  "203159",  // Losartan 50mg
   "312086",  // Ondansetron 4mg
-  // Additional SCD codes confirmed via RxNav
-  "310965",  // Ibuprofen 400mg
+  "310965",  // Ibuprofen 400mg (alternate RXCUI)
   "308136",  // Amlodipine 5mg (alternate RXCUI)
   "312940",  // Sertraline 50mg (alternate RXCUI)
   "308460",  // Amlodipine 10mg
-  "308135",  // Amlodipine 2.5mg
 ]);
 
 /**
- * Estimates monthly savings between a brand and its generic alternative.
- * Returns a formatted string like "$115".
+ * Estimates monthly savings between a brand tier and its generic alternative.
+ * Returns the numeric savings in USD (rounded), or 0 if negative.
  */
-export function estimateMonthlySavings(brandTier: DrugTier, genericTier: DrugTier): string {
+export function estimateMonthlySavings(brandTier: DrugTier, genericTier: DrugTier): number {
   const brandMid = (COST_TIERS[brandTier].min + COST_TIERS[brandTier].max) / 2;
   const genericMid = (COST_TIERS[genericTier].min + COST_TIERS[genericTier].max) / 2;
-  const savings = Math.round(brandMid - genericMid);
-  return savings > 0 ? `$${savings}` : "$0";
+  return Math.max(0, Math.round(brandMid - genericMid));
 }
 
 export const DISCLAIMER =
