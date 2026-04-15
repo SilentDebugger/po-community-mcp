@@ -8,7 +8,12 @@ import type { FollowUpItem, FollowUpPlanInput, FollowUpPlanResult } from "./type
 
 const SNOMED_SYSTEM = "http://snomed.info/sct";
 const ABNORMAL_CODES = new Set(["H", "L", "HH", "LL"]);
-const URGENT_PRIORITIES = new Set<string>(["urgent", "emergent"]);
+const ESCALATION_PRIORITIES = new Set<string>(["high", "urgent", "emergent"]);
+
+const ABBREVIATION_REGEX = new RegExp(
+  `\\b(${Object.keys(MEDICAL_ABBREVIATIONS).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`,
+  "g",
+);
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -56,16 +61,20 @@ function isCoveredByCarePlan(item: FollowUpItem, coverage: Set<string>): boolean
     ...(item.tests?.map((t) => t.toLowerCase()) ?? []),
   ].filter((v): v is string => Boolean(v));
 
-  return candidates.some((c) =>
-    [...coverage].some((token) => token.includes(c) || c.includes(token)),
-  );
+  for (const c of candidates) {
+    for (const token of coverage) {
+      if (token.includes(c) || c.includes(token)) return true;
+    }
+  }
+  return false;
 }
 
 // ── Abbreviation expansion (patient-facing output) ──────────────────────────
 
 function expandText(text: string): string {
+  ABBREVIATION_REGEX.lastIndex = 0;
   return text.replace(
-    new RegExp(`\\b(${Object.keys(MEDICAL_ABBREVIATIONS).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`, "g"),
+    ABBREVIATION_REGEX,
     (match) => MEDICAL_ABBREVIATIONS[match] ?? match,
   );
 }
@@ -135,20 +144,21 @@ export function planFollowUp(input: FollowUpPlanInput): FollowUpPlanResult {
   // 5 — Deduplicate: keep first occurrence per type + specialty/study key
   const seen = new Set<string>();
   const followUpItems = filtered.filter((item) => {
-    const key = `${item.type}|${item.specialty ?? ""}|${item.study ?? ""}`;
+    const testsKey = item.tests ? [...item.tests].sort().join(",") : "";
+    const key = `${item.type}|${item.specialty ?? ""}|${item.study ?? ""}|${testsKey}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 
   // 6 — Readmission risk note
-  const urgentCount = followUpItems.filter((i) =>
-    URGENT_PRIORITIES.has(i.priority),
+  const escalatedCount = followUpItems.filter((i) =>
+    ESCALATION_PRIORITIES.has(i.priority),
   ).length;
 
   const readmissionRiskNote =
-    urgentCount >= 2
-      ? "Multiple urgent follow-ups required — elevated readmission risk. Ensure timely care coordination."
+    escalatedCount >= 3
+      ? "Multiple high-priority follow-ups required — elevated readmission risk. Ensure timely care coordination."
       : "Standard follow-up plan. Monitor for symptom recurrence.";
 
   return { followUpItems: followUpItems.map(expandItem), readmissionRiskNote };
