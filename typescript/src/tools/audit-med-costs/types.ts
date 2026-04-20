@@ -5,13 +5,13 @@ export interface SavingsOpportunity {
   suggestedAlternative: string;
   estimatedMonthlySavings: number;
   reason: string;
-  apiUnavailable?: boolean;
 }
 
 export interface AuditMedCostsResult {
   savingsOpportunities: SavingsOpportunity[];
   totalEstimatedMonthlySavings: number;
   noChangeNeeded: string[];
+  unanalyzed: string[];
   disclaimer: string;
 }
 

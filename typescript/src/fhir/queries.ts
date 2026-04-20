@@ -5,7 +5,7 @@ import { fhirClient } from "./client";
 export interface DischargeFhirData {
   patient: fhirR4.Patient;
   encounter: fhirR4.Encounter;
-  allEncounters: fhirR4.Encounter[];
+  erEncounters: fhirR4.Encounter[];
   conditions: fhirR4.Condition[];
   procedures: fhirR4.Procedure[];
   medicationRequests: fhirR4.MedicationRequest[];
@@ -109,10 +109,14 @@ export async function fetchDischargeFhirData(
   req: Request,
   patientId: string,
 ): Promise<DischargeFhirData> {
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const erDateFilter = `date=ge${sixMonthsAgo.toISOString().split("T")[0]}`;
+
   const [
     patient,
     inpatientEncounters,
-    allEncounters,
+    erEncounters,
     conditions,
     procedures,
     medicationRequests,
@@ -122,7 +126,7 @@ export async function fetchDischargeFhirData(
   ] = await Promise.all([
     getPatient(req, patientId),
     getEncounters(req, patientId, ["class=IMP", "_sort=-date", "_count=1"]),
-    getEncounters(req, patientId),
+    getEncounters(req, patientId, ["class=EMER", erDateFilter]),
     getConditions(req, patientId),
     getProcedures(req, patientId),
     getMedicationRequests(req, patientId),
@@ -143,7 +147,7 @@ export async function fetchDischargeFhirData(
   return {
     patient,
     encounter,
-    allEncounters,
+    erEncounters,
     conditions,
     procedures,
     medicationRequests,
