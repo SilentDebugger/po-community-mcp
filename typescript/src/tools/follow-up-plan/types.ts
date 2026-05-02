@@ -1,18 +1,7 @@
 import { fhirR4 } from "@smile-cdr/fhirts";
+import type { FollowUpItem } from "../../data/follow-up-rules";
 
-export type FollowUpPriority = "routine" | "high" | "urgent" | "emergent";
-
-export interface FollowUpItem {
-  type: string;
-  specialty?: string;
-  timeframe: string;
-  reason: string;
-  priority: FollowUpPriority;
-  /** For imaging items — the imaging study name (e.g. "Chest X-ray") */
-  study?: string;
-  /** For lab items — the list of tests to order */
-  tests?: string[];
-}
+export type { FollowUpPriority, FollowUpItem } from "../../data/follow-up-rules";
 
 export interface FollowUpPlanResult {
   followUpItems: FollowUpItem[];

@@ -3,23 +3,12 @@ import {
   CONDITION_FOLLOW_UP_RULES,
   PROCEDURE_FOLLOW_UP_RULES,
 } from "../../data/follow-up-rules";
-import { MEDICAL_ABBREVIATIONS } from "../../data/medical-abbreviations";
+import { getSnomedCode } from "../../data";
+import { expandAbbreviations, expandAbbreviationToken } from "../../utils/expand-abbreviations";
 import type { FollowUpItem, FollowUpPlanInput, FollowUpPlanResult } from "./types";
 
-const SNOMED_SYSTEM = "http://snomed.info/sct";
 const ABNORMAL_CODES = new Set(["H", "L", "HH", "LL"]);
 const ESCALATION_PRIORITIES = new Set<string>(["high", "urgent", "emergent"]);
-
-const ABBREVIATION_REGEX = new RegExp(
-  `\\b(${Object.keys(MEDICAL_ABBREVIATIONS).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`,
-  "g",
-);
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function getSnomedCode(coding?: fhirR4.Coding[]): string | undefined {
-  return coding?.find((c) => c.system === SNOMED_SYSTEM)?.code;
-}
 
 /**
  * Builds a set of normalized coverage tokens from active CarePlans.
@@ -71,26 +60,29 @@ function isCoveredByCarePlan(item: FollowUpItem, coverage: Set<string>): boolean
 
 // ── Abbreviation expansion (patient-facing output) ──────────────────────────
 
-function expandText(text: string): string {
-  ABBREVIATION_REGEX.lastIndex = 0;
-  return text.replace(
-    ABBREVIATION_REGEX,
-    (match) => MEDICAL_ABBREVIATIONS[match] ?? match,
-  );
-}
-
-function expandItem(item: FollowUpItem): FollowUpItem {
+export function expandFollowUpItem(item: FollowUpItem): FollowUpItem {
   return {
     ...item,
-    reason: expandText(item.reason),
-    ...(item.specialty && { specialty: expandText(item.specialty) }),
-    ...(item.tests && { tests: item.tests.map((t) => MEDICAL_ABBREVIATIONS[t] ?? expandText(t)) }),
+    reason: expandAbbreviations(item.reason),
+    ...(item.specialty && { specialty: expandAbbreviations(item.specialty) }),
+    ...(item.tests && {
+      tests: item.tests.map((t) => {
+        const expanded = expandAbbreviationToken(t);
+        return expanded !== t ? expanded : expandAbbreviations(t);
+      }),
+    }),
   };
 }
 
 // ── Core logic ───────────────────────────────────────────────────────────────
 
-export function planFollowUp(input: FollowUpPlanInput): FollowUpPlanResult {
+/**
+ * @param expand - When true (default), all returned items have medical
+ *   abbreviations expanded for patient-facing use. Pass false when the
+ *   caller (e.g. the discharge-packet orchestrator) will handle expansion
+ *   itself so the clinician packet receives raw clinical abbreviations.
+ */
+export function planFollowUp(input: FollowUpPlanInput, expand = true): FollowUpPlanResult {
   const items: FollowUpItem[] = [];
 
   // 1 — Conditions → SNOMED lookup with fallback to "default" rule
@@ -158,8 +150,11 @@ export function planFollowUp(input: FollowUpPlanInput): FollowUpPlanResult {
 
   const readmissionRiskNote =
     escalatedCount >= 3
-      ? "Multiple high-priority follow-ups required — elevated readmission risk. Ensure timely care coordination."
+      ? "Multiple high-priority follow-ups required — ensure timely care coordination to support a safe recovery."
       : "Standard follow-up plan. Monitor for symptom recurrence.";
 
-  return { followUpItems: followUpItems.map(expandItem), readmissionRiskNote };
+  return {
+    followUpItems: expand ? followUpItems.map(expandFollowUpItem) : followUpItems,
+    readmissionRiskNote,
+  };
 }

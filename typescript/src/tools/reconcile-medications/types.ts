@@ -57,5 +57,3 @@ export interface ReconcileMedicationsOutput {
   interactionWarnings: InteractionWarning[];
   allergyConflicts: AllergyConflict[];
 }
-
-export type ReconcileMedicationsResult = ReconcileMedicationsOutput;

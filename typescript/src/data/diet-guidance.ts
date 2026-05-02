@@ -41,10 +41,10 @@ export const DIET_GUIDANCE: Record<string, string> = {
   "91302008": "Eat a high-protein diet to support immune function and recovery. Small, frequent meals are easier to manage if your appetite is poor. Stay hydrated.",
 
   // ── Pulmonary embolism (PE) ───────────────────────────────────────────────
-  "59282003": "Maintain consistent vitamin K intake if you are on warfarin (avoid large changes in green vegetables). Stay well hydrated. Limit alcohol.",
+  "59282003": "Stay well hydrated. If you are on warfarin, keep your vitamin K intake consistent — eat similar amounts of leafy greens each day. If you are on a newer blood thinner (rivaroxaban, apixaban, or similar), no vitamin K dietary restrictions are needed. Limit alcohol.",
 
   // ── Deep vein thrombosis (DVT) ────────────────────────────────────────────
-  "128053003": "Stay well hydrated throughout the day. If on warfarin, keep your vitamin K intake consistent. Avoid alcohol.",
+  "128053003": "Stay well hydrated throughout the day. If you are on warfarin, keep your vitamin K intake consistent — eat similar amounts of leafy greens each day. If you are on a newer blood thinner (rivaroxaban, apixaban, or similar), no vitamin K dietary restrictions are needed. Avoid alcohol.",
 
   // ── Urinary tract infection (UTI) ────────────────────────────────────────
   "68566005": "Drink at least 8 glasses of water per day. Avoid caffeine and alcohol during treatment, as they can irritate the bladder. Unsweetened cranberry juice may help.",

@@ -1,6 +1,7 @@
 import { fhirR4 } from "@smile-cdr/fhirts";
 import { DRUG_INTERACTIONS } from "../../data/drug-interactions";
-import { MEDICAL_ABBREVIATIONS } from "../../data/medical-abbreviations";
+import { expandAbbreviations } from "../../utils/expand-abbreviations";
+import { RXNORM_SYSTEM } from "../../fhir/constants";
 import {
   ReconcileMedicationsInput,
   ReconcileMedicationsOutput,
@@ -11,23 +12,6 @@ import {
   InteractionWarning,
   AllergyConflict,
 } from "./types";
-
-const RXNORM_SYSTEM = "http://www.nlm.nih.gov/research/umls/rxnorm";
-
-const ABBREVIATION_REGEX = new RegExp(
-  `\\b(${Object.keys(MEDICAL_ABBREVIATIONS)
-    .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|")})\\b`,
-  "g",
-);
-
-function expandText(text: string): string {
-  ABBREVIATION_REGEX.lastIndex = 0;
-  return text.replace(
-    ABBREVIATION_REGEX,
-    (match) => MEDICAL_ABBREVIATIONS[match] ?? match,
-  );
-}
 
 function toDateString(value: string | Date | undefined): string | undefined {
   if (value === undefined) return undefined;
@@ -75,7 +59,9 @@ export function reconcileMedications(
 
   const periodStart = encounter.period?.start;
   if (!periodStart) {
-    throw new Error("FHIR_RESOURCE_NOT_FOUND");
+    throw new Error(
+      "Encounter period.start is missing — cannot determine medication timeline for reconciliation",
+    );
   }
 
   const admissionDate = new Date(toDateString(periodStart) ?? periodStart);
@@ -146,7 +132,7 @@ export function reconcileMedications(
         medication: extractDisplayName(med),
         rxnorm,
         startedOn: toDateOnly(med.authoredOn),
-        dosage: dosage ? expandText(dosage) : undefined,
+        dosage: dosage ? expandAbbreviations(dosage) : undefined,
       });
     } else {
       const prevDosage = extractDosage(preMed);
@@ -155,8 +141,8 @@ export function reconcileMedications(
         changedMeds.push({
           medication: extractDisplayName(med),
           rxnorm,
-          previousDosage: prevDosage ? expandText(prevDosage) : "",
-          newDosage: newDosage ? expandText(newDosage) : "",
+          previousDosage: prevDosage ? expandAbbreviations(prevDosage) : "",
+          newDosage: newDosage ? expandAbbreviations(newDosage) : "",
           changedOn: toDateOnly(med.authoredOn),
         });
         changedRxNorms.add(rxnorm);

@@ -110,6 +110,8 @@ export const CHARLSON_MAP: Record<string, CharlsonEntry> = {
   "254837009": { category: "Any malignancy", points: 2, notes: "Malignant tumor of breast" },
   "399068003": { category: "Any malignancy", points: 2, notes: "Malignant tumor of prostate" },
 
+  // ── 3-point conditions ─────────────────────────────────────────────────
+
   // Moderate or severe liver disease
   "19943007":  { category: "Moderate or severe liver disease", points: 3, notes: "Cirrhosis" },
   "57773001":  { category: "Moderate or severe liver disease", points: 3, notes: "Portal hypertension" },
@@ -139,7 +141,7 @@ export function charlsonSumToLaceC(charlsonSum: number): number {
   return 5; // 4 or more → 5 points
 }
 
-const SNOMED_SYSTEM = "http://snomed.info/sct";
+import { SNOMED_SYSTEM } from "../fhir/constants";
 
 /**
  * Extracts the primary SNOMED code from a FHIR CodeableConcept.

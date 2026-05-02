@@ -8,8 +8,7 @@ import {
 import { getRelatedGenerics } from "../../external/rxnav/client";
 import { fhirR4 } from "@smile-cdr/fhirts";
 import { RxNavRelatedGroup } from "../../external/rxnav/types";
-
-const RXNORM_SYSTEM = "http://www.nlm.nih.gov/research/umls/rxnorm";
+import { RXNORM_SYSTEM } from "../../fhir/constants";
 
 interface ParsedMed {
   name: string;
