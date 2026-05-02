@@ -33,7 +33,9 @@ export const MEDICAL_ABBREVIATIONS: Record<string, string> = {
   MRI: "MRI scan",
   EKG: "heart tracing (ECG)",
   ECG: "heart tracing (ECG)",
-  Doppler: "ultrasound to check blood flow (Doppler)",
+  // NOTE: "Doppler" is intentionally excluded — it appears as part of full
+  // procedure names (e.g. "Doppler ultrasonography") and expanding it
+  // in-place produces redundant/garbled text.
 
   // ── Emergency settings ────────────────────────────────────────────────────
   ED: "emergency department (ED)",

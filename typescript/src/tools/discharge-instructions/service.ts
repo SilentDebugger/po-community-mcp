@@ -265,6 +265,44 @@ function buildDietGuidance(conditions: fhirR4.Condition[], applyExpansion: boole
   return applyExpansion ? expandAbbreviations(defaultDiet) : defaultDiet;
 }
 
+// ── Deduplication ─────────────────────────────────────────────────────────────
+
+function deduplicateByRxNorm(
+  meds: fhirR4.MedicationRequest[],
+): fhirR4.MedicationRequest[] {
+  const byRxNorm = new Map<string, fhirR4.MedicationRequest>();
+  const noRxNorm: fhirR4.MedicationRequest[] = [];
+
+  for (const med of meds) {
+    const rxNorm = med.medicationCodeableConcept?.coding?.find(
+      (c) => c.system === RXNORM_SYSTEM,
+    )?.code;
+
+    if (!rxNorm) {
+      noRxNorm.push(med);
+      continue;
+    }
+
+    const existing = byRxNorm.get(rxNorm);
+    if (!existing) {
+      byRxNorm.set(rxNorm, med);
+      continue;
+    }
+
+    const existingDate = existing.authoredOn
+      ? new Date(existing.authoredOn).getTime()
+      : 0;
+    const currentDate = med.authoredOn
+      ? new Date(med.authoredOn).getTime()
+      : 0;
+    if (currentDate > existingDate) {
+      byRxNorm.set(rxNorm, med);
+    }
+  }
+
+  return [...byRxNorm.values(), ...noRxNorm];
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function generateDischargeInstructions(
@@ -275,8 +313,12 @@ export function generateDischargeInstructions(
   const conditions = input.conditions.filter((c) =>
     c.clinicalStatus?.coding?.some((coding) => coding.code === "active"),
   );
-  const medicationRequests = input.medicationRequests.filter(
-    (m) => m.status === "active",
+
+  // Deduplicate active meds by RxNorm — FHIR bundles may contain multiple
+  // active requests for the same drug (e.g. an old outpatient order alongside
+  // the current discharge order). Keep the most recently authored entry per drug.
+  const medicationRequests = deduplicateByRxNorm(
+    input.medicationRequests.filter((m) => m.status === "active"),
   );
 
   const admitDate = encounter.period?.start ? toDate(encounter.period.start) : null;

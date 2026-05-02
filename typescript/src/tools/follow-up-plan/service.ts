@@ -150,7 +150,7 @@ export function planFollowUp(input: FollowUpPlanInput, expand = true): FollowUpP
 
   const readmissionRiskNote =
     escalatedCount >= 3
-      ? "Multiple high-priority follow-ups required — elevated readmission risk. Ensure timely care coordination."
+      ? "Multiple high-priority follow-ups required — ensure timely care coordination to support a safe recovery."
       : "Standard follow-up plan. Monitor for symptom recurrence.";
 
   return {
