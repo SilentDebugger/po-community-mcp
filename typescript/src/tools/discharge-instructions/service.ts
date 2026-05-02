@@ -34,7 +34,8 @@ function formatPatientName(patient: fhirR4.Patient): string {
   if (!name) return "the patient";
   const given = name.given?.join(" ") ?? "";
   const family = name.family ?? "";
-  return [given, family].filter(Boolean).join(" ") || "the patient";
+  const structured = [given, family].filter(Boolean).join(" ");
+  return structured || name.text || "the patient";
 }
 
 function extractSnomedCodes(conditions: fhirR4.Condition[]): string[] {
@@ -69,8 +70,9 @@ function buildClinicianVisitSummary(
     .map((p) => p.code?.text ?? p.code?.coding?.[0]?.display ?? "")
     .filter(Boolean);
 
+  const gender = patient.gender ?? null;
   const lines = [
-    `Patient: ${age !== null ? `${age}-year-old ` : ""}${name}`,
+    `Patient: ${age !== null ? `${age}-year-old ` : ""}${gender ? `${gender} ` : ""}${name}`,
     admitDate ? `Admission date: ${format(admitDate, "MMMM d, yyyy")}` : "",
     `Discharge date: ${format(dischargeDate, "MMMM d, yyyy")}`,
     los !== null ? `Length of stay: ${los} day${los !== 1 ? "s" : ""}` : "",
@@ -188,7 +190,13 @@ function buildMedicationInstructions(
     const rawInstructions = [purpose, notes].filter(Boolean).join(". ");
     const instructions = applyExpansion ? expandAbbreviations(rawInstructions) : rawInstructions;
 
-    return { name: medName, dosage, frequency, instructions };
+    return {
+      name: medName,
+      rxNorm: rxNormCode || undefined,
+      dosage,
+      frequency,
+      instructions,
+    };
   });
 }
 

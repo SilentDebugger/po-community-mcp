@@ -7,6 +7,7 @@ import { auditMedCosts } from "../audit-med-costs/service";
 import { ReadingLevel } from "../discharge-instructions/types";
 import { ClinicianInstructions, PatientInstructions } from "../discharge-instructions/types";
 import { FollowUpItem } from "../follow-up-plan/types";
+import { expandFollowUpItem } from "../follow-up-plan/service";
 import {
   DischargePacketResult,
   SimplifiedFollowUpItem,
@@ -40,19 +41,21 @@ function isError<T>(result: SubToolResult<T>): result is { error: string } {
 }
 
 /**
- * Flattens a FollowUpItem into a single patient-readable line.
- * Tests and study name are folded into the reason; specialty and priority are dropped.
+ * Expands abbreviations on a raw FollowUpItem then flattens it into a single
+ * patient-readable line. Tests and study name are folded into the reason;
+ * specialty and priority are dropped entirely.
  */
 function simplifyFollowUpItem(item: FollowUpItem): SimplifiedFollowUpItem {
-  let reason = item.reason;
+  const expanded = expandFollowUpItem(item);
+  let reason = expanded.reason;
 
-  if (item.type === "lab" && item.tests && item.tests.length > 0) {
-    reason = `Lab work (${item.tests.join(", ")}): ${reason}`;
-  } else if (item.type === "imaging" && item.study) {
-    reason = `${item.study}: ${reason}`;
+  if (expanded.type === "lab" && expanded.tests && expanded.tests.length > 0) {
+    reason = `Lab work (${expanded.tests.join(", ")}): ${reason}`;
+  } else if (expanded.type === "imaging" && expanded.study) {
+    reason = `${expanded.study}: ${reason}`;
   }
 
-  return { timeframe: item.timeframe, reason };
+  return { timeframe: expanded.timeframe, reason };
 }
 
 export async function buildDischargePacket(
@@ -91,12 +94,15 @@ export async function buildDischargePacket(
       }),
     ),
     runSafe(() =>
-      planFollowUp({
-        conditions: data.conditions,
-        procedures: data.procedures,
-        observations: data.observations,
-        carePlans: data.carePlans,
-      }),
+      planFollowUp(
+        {
+          conditions: data.conditions,
+          procedures: data.procedures,
+          observations: data.observations,
+          carePlans: data.carePlans,
+        },
+        false, // orchestrator expands patient path itself; clinician packet keeps raw abbreviations
+      ),
     ),
     runSafe(() =>
       auditMedCosts({
@@ -110,9 +116,27 @@ export async function buildDischargePacket(
     ? EMPTY_CLINICIAN
     : dischargeInstructions.clinician;
 
-  const patientInstructions = isError(dischargeInstructions)
+  const rawPatientInstructions = isError(dischargeInstructions)
     ? EMPTY_PATIENT
     : dischargeInstructions.patient;
+
+  // Annotate patient medications with change type from reconciliation result.
+  const patientInstructions = (() => {
+    if (isError(medicationReconciliation)) return rawPatientInstructions;
+    const newRxNorms = new Set(medicationReconciliation.reconciliation.new.map((m) => m.rxnorm));
+    const changedRxNorms = new Set(medicationReconciliation.reconciliation.changed.map((m) => m.rxnorm));
+    return {
+      ...rawPatientInstructions,
+      medications: rawPatientInstructions.medications.map((med) => ({
+        ...med,
+        changeType: newRxNorms.has(med.rxNorm ?? "")
+          ? ("new" as const)
+          : changedRxNorms.has(med.rxNorm ?? "")
+            ? ("changed" as const)
+            : ("continued" as const),
+      })),
+    };
+  })();
 
   const followUpAppointments = isError(followUpPlan)
     ? []

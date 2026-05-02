@@ -66,18 +66,29 @@ function isCoveredByCarePlan(item: FollowUpItem, coverage: Set<string>): boolean
 
 // ── Abbreviation expansion (patient-facing output) ──────────────────────────
 
-function expandItem(item: FollowUpItem): FollowUpItem {
+export function expandFollowUpItem(item: FollowUpItem): FollowUpItem {
   return {
     ...item,
     reason: expandAbbreviations(item.reason),
     ...(item.specialty && { specialty: expandAbbreviations(item.specialty) }),
-    ...(item.tests && { tests: item.tests.map((t) => { const expanded = expandAbbreviationToken(t); return expanded !== t ? expanded : expandAbbreviations(t); }) }),
+    ...(item.tests && {
+      tests: item.tests.map((t) => {
+        const expanded = expandAbbreviationToken(t);
+        return expanded !== t ? expanded : expandAbbreviations(t);
+      }),
+    }),
   };
 }
 
 // ── Core logic ───────────────────────────────────────────────────────────────
 
-export function planFollowUp(input: FollowUpPlanInput): FollowUpPlanResult {
+/**
+ * @param expand - When true (default), all returned items have medical
+ *   abbreviations expanded for patient-facing use. Pass false when the
+ *   caller (e.g. the discharge-packet orchestrator) will handle expansion
+ *   itself so the clinician packet receives raw clinical abbreviations.
+ */
+export function planFollowUp(input: FollowUpPlanInput, expand = true): FollowUpPlanResult {
   const items: FollowUpItem[] = [];
 
   // 1 — Conditions → SNOMED lookup with fallback to "default" rule
@@ -148,5 +159,8 @@ export function planFollowUp(input: FollowUpPlanInput): FollowUpPlanResult {
       ? "Multiple high-priority follow-ups required — elevated readmission risk. Ensure timely care coordination."
       : "Standard follow-up plan. Monitor for symptom recurrence.";
 
-  return { followUpItems: followUpItems.map(expandItem), readmissionRiskNote };
+  return {
+    followUpItems: expand ? followUpItems.map(expandFollowUpItem) : followUpItems,
+    readmissionRiskNote,
+  };
 }

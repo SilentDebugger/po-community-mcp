@@ -1,7 +1,10 @@
 import { MEDICAL_ABBREVIATIONS } from "../data/medical-abbreviations";
 
+// (?<!\() prevents re-expanding abbreviations that already appear inside
+// parentheses — e.g. "Deep venous thrombosis (DVT)" stays untouched while a
+// standalone "DVT" in free text is still expanded.
 const ABBREVIATION_REGEX = new RegExp(
-  `\\b(${Object.keys(MEDICAL_ABBREVIATIONS)
+  `(?<!\\()\\b(${Object.keys(MEDICAL_ABBREVIATIONS)
     .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
     .join("|")})\\b`,
   "g",

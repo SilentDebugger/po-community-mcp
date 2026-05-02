@@ -4,10 +4,13 @@ export type ReadingLevel = "simple" | "standard" | "detailed";
 
 export interface MedicationInstruction {
   name: string;
+  rxNorm?: string;
   dosage: string;
   frequency: string;
   instructions: string;
   warnings?: string[];
+  /** Populated by the discharge-packet orchestrator after reconciliation. */
+  changeType?: "new" | "changed" | "continued";
 }
 
 export interface ClinicianInstructions {
