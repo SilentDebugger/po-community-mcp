@@ -1,7 +1,7 @@
 {
   "name": "po-community-mcp",
   "version": "1.0.0",
-  "description": "DischargePlus — FHIR-powered MCP tools for discharge workflows",
+  "description": "Discharge+ — FHIR-powered MCP tools for discharge workflows",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -16,14 +16,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/darena-solutions/darena-health-community-mcp.git"
+    "url": "git+https://github.com/SilentDebugger/po-community-mcp.git"
   },
-  "author": "Darena Solutions",
+  "author": "Discharge+ Team",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/darena-solutions/darena-health-community-mcp/issues"
+    "url": "https://github.com/SilentDebugger/po-community-mcp/issues"
   },
-  "homepage": "https://github.com/darena-solutions/darena-health-community-mcp#readme",
+  "homepage": "https://github.com/SilentDebugger/po-community-mcp#readme",
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@types/cors": "^2.8.19",
