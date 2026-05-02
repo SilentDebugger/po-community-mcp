@@ -5,11 +5,55 @@ import { assessReadmissionRisk } from "../readmission-risk/service";
 import { planFollowUp } from "../follow-up-plan/service";
 import { auditMedCosts } from "../audit-med-costs/service";
 import { ReadingLevel } from "../discharge-instructions/types";
-import { DischargePacketResult, SubToolResult } from "./types";
+import { ClinicianInstructions, PatientInstructions } from "../discharge-instructions/types";
+import { FollowUpItem } from "../follow-up-plan/types";
+import {
+  DischargePacketResult,
+  SimplifiedFollowUpItem,
+  SubToolResult,
+} from "./types";
 
 const DISCLAIMER =
   "This discharge packet is generated from structured clinical data and deterministic rules. " +
   "It is not a substitute for clinical judgment. All information should be reviewed by a qualified healthcare provider.";
+
+const EMPTY_CLINICIAN: ClinicianInstructions = {
+  visitSummary: "",
+  diagnoses: [],
+  procedures: [],
+  lengthOfStay: null,
+  medications: [],
+};
+
+const EMPTY_PATIENT: PatientInstructions = {
+  visitSummary: "",
+  medications: [],
+  warningSigns: [],
+  activityRestrictions: [],
+  dietGuidance: "",
+  askCareTeamReminder:
+    "Before you leave the hospital, please ask your care team about: driving, bathing, wound care, and when you can return to work.",
+};
+
+function isError<T>(result: SubToolResult<T>): result is { error: string } {
+  return typeof result === "object" && result !== null && "error" in result;
+}
+
+/**
+ * Flattens a FollowUpItem into a single patient-readable line.
+ * Tests and study name are folded into the reason; specialty and priority are dropped.
+ */
+function simplifyFollowUpItem(item: FollowUpItem): SimplifiedFollowUpItem {
+  let reason = item.reason;
+
+  if (item.type === "lab" && item.tests && item.tests.length > 0) {
+    reason = `Lab work (${item.tests.join(", ")}): ${reason}`;
+  } else if (item.type === "imaging" && item.study) {
+    reason = `${item.study}: ${reason}`;
+  }
+
+  return { timeframe: item.timeframe, reason };
+}
 
 export async function buildDischargePacket(
   data: DischargeFhirData,
@@ -62,14 +106,32 @@ export async function buildDischargePacket(
     ),
   ]);
 
+  const clinicalSummary = isError(dischargeInstructions)
+    ? EMPTY_CLINICIAN
+    : dischargeInstructions.clinician;
+
+  const patientInstructions = isError(dischargeInstructions)
+    ? EMPTY_PATIENT
+    : dischargeInstructions.patient;
+
+  const followUpAppointments = isError(followUpPlan)
+    ? []
+    : followUpPlan.followUpItems.map(simplifyFollowUpItem);
+
   return {
     patient: data.patient,
     encounter: data.encounter,
-    medicationReconciliation,
-    dischargeInstructions,
-    readmissionRisk,
-    followUpPlan,
-    costSavings,
+    clinicianPacket: {
+      clinicalSummary,
+      medicationReconciliation,
+      readmissionRisk,
+      followUpPlan,
+      costSavings,
+    },
+    patientPacket: {
+      instructions: patientInstructions,
+      followUpAppointments,
+    },
     generatedAt: new Date().toISOString(),
     disclaimer: DISCLAIMER,
   };

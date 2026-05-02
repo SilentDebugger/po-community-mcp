@@ -13,8 +13,15 @@ class DischargePacketTool implements IMcpTool {
       "BuildDischargePacket",
       {
         description:
-          "Master orchestrator: produces a complete discharge packet including medication reconciliation, " +
-          "discharge instructions, readmission risk, follow-up plan, and cost savings in a single call.",
+          "Master orchestrator: produces a complete discharge packet split into two separate documents. " +
+          "The response contains two top-level keys: " +
+          "'clinicianPacket' (full clinical detail: medication reconciliation, readmission risk LACE score, " +
+          "complete follow-up plan, cost savings, and a structured clinical summary with diagnoses, procedures, and length of stay) and " +
+          "'patientPacket' (patient-friendly: visit summary in plain 'you/your' language with all medical abbreviations expanded, " +
+          "medications, warning signs, activity restrictions, diet guidance, simplified follow-up appointments, " +
+          "and a 'Before you leave' care-team reminder). " +
+          "Always render clinicianPacket and patientPacket as two clearly labelled separate sections. " +
+          "Never show cost savings or LACE scores to the patient.",
         inputSchema: {
           patientId: z
             .string()

@@ -1,6 +1,8 @@
 import { differenceInDays, differenceInYears, format, isValid, parseISO } from "date-fns";
 import { fhirR4 } from "@smile-cdr/fhirts";
 import {
+  ClinicianInstructions,
+  PatientInstructions,
   DischargeInstructionsInput,
   DischargeInstructionsResult,
   MedicationInstruction,
@@ -14,6 +16,10 @@ import {
   RXNORM_TO_DRUG_CLASS,
   WARNING_SIGNS,
 } from "../../data";
+import { expandAbbreviations } from "../../utils/expand-abbreviations";
+
+const ASK_CARE_TEAM_REMINDER =
+  "Before you leave the hospital, please ask your care team about: driving, bathing, wound care, and when you can return to work.";
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
@@ -40,14 +46,13 @@ function extractSnomedCodes(conditions: fhirR4.Condition[]): string[] {
   );
 }
 
-// ── Section builders ──────────────────────────────────────────────────────────
+// ── Clinician visit summary (always full clinical detail, no expansion) ───────
 
-function buildVisitSummary(
+function buildClinicianVisitSummary(
   patient: fhirR4.Patient,
   encounter: fhirR4.Encounter,
   conditions: fhirR4.Condition[],
   procedures: fhirR4.Procedure[],
-  level: ReadingLevel,
 ): string {
   const name = formatPatientName(patient);
   const birthDate = patient.birthDate ? toDate(patient.birthDate) : null;
@@ -64,37 +69,6 @@ function buildVisitSummary(
     .map((p) => p.code?.text ?? p.code?.coding?.[0]?.display ?? "")
     .filter(Boolean);
 
-  if (level === "simple") {
-    const parts = [`${name} was in the hospital`];
-    if (los !== null) parts.push(`for ${los} day${los !== 1 ? "s" : ""}`);
-    if (conditionNames.length === 1) {
-      parts.push(`for ${conditionNames[0]}`);
-    } else if (conditionNames.length > 1) {
-      const last = conditionNames[conditionNames.length - 1];
-      const rest = conditionNames.slice(0, -1);
-      parts.push(`for ${rest.join(", ")} and ${last}`);
-    }
-    return parts.join(" ") + ".";
-  }
-
-  if (level === "standard") {
-    const agePart = age !== null ? `, ${age} years old,` : "";
-    const losPart = admitDate
-      ? `admitted on ${format(admitDate, "MMMM d, yyyy")}`
-      : "recently admitted";
-    const condPart =
-      conditionNames.length > 0 ? `Conditions treated: ${conditionNames.join(", ")}.` : "";
-    const procPart =
-      procedureNames.length > 0 ? ` Procedures performed: ${procedureNames.join(", ")}.` : "";
-    return (
-      `${name}${agePart} was ${losPart} and is being discharged today. ` +
-      condPart +
-      procPart +
-      " Please follow all instructions in this document carefully."
-    );
-  }
-
-  // detailed
   const lines = [
     `Patient: ${age !== null ? `${age}-year-old ` : ""}${name}`,
     admitDate ? `Admission date: ${format(admitDate, "MMMM d, yyyy")}` : "",
@@ -108,9 +82,70 @@ function buildVisitSummary(
   return lines.filter(Boolean).join("\n");
 }
 
+// ── Patient visit summary (you/your tone, abbreviations expanded) ─────────────
+
+function buildPatientVisitSummary(
+  encounter: fhirR4.Encounter,
+  conditions: fhirR4.Condition[],
+  procedures: fhirR4.Procedure[],
+  level: ReadingLevel,
+): string {
+  const admitDate = encounter.period?.start ? toDate(encounter.period.start) : null;
+  const dischargeDate = (encounter.period?.end ? toDate(encounter.period.end) : null) ?? new Date();
+  const los = admitDate ? differenceInDays(dischargeDate, admitDate) : null;
+  const losDays = los !== null ? `${los} day${los !== 1 ? "s" : ""}` : null;
+
+  const conditionNames = conditions
+    .map((c) => expandAbbreviations(c.code?.text ?? c.code?.coding?.[0]?.display ?? ""))
+    .filter(Boolean);
+  const procedureNames = procedures
+    .map((p) => expandAbbreviations(p.code?.text ?? p.code?.coding?.[0]?.display ?? ""))
+    .filter(Boolean);
+
+  if (level === "simple") {
+    const parts = ["You were in the hospital"];
+    if (losDays) parts.push(`for ${losDays}`);
+    if (conditionNames.length === 1) {
+      parts.push(`for ${conditionNames[0]}`);
+    } else if (conditionNames.length > 1) {
+      const last = conditionNames[conditionNames.length - 1]!;
+      const rest = conditionNames.slice(0, -1);
+      parts.push(`for ${rest.join(", ")} and ${last}`);
+    }
+    return parts.join(" ") + ".";
+  }
+
+  const condPart =
+    conditionNames.length > 0 ? `You were treated for: ${conditionNames.join(", ")}.` : "";
+  const procPart =
+    procedureNames.length > 0 ? ` Procedures performed: ${procedureNames.join(", ")}.` : "";
+
+  if (level === "standard") {
+    const admitPart = admitDate
+      ? `You were admitted on ${format(admitDate, "MMMM d, yyyy")}`
+      : "You were recently admitted";
+    return (
+      `${admitPart} and are being discharged today. ` +
+      condPart +
+      procPart +
+      " Please follow all instructions in this document carefully."
+    );
+  }
+
+  // detailed — more verbose, still fully patient-friendly
+  const admitPart = admitDate
+    ? `You were admitted on ${format(admitDate, "MMMM d, yyyy")} and are being discharged on ${format(dischargeDate, "MMMM d, yyyy")}.`
+    : `You are being discharged on ${format(dischargeDate, "MMMM d, yyyy")}.`;
+  const losPart = losDays ? ` You were in the hospital for ${losDays}.` : "";
+  return [admitPart + losPart, condPart + procPart].filter(Boolean).join("\n");
+}
+
+// ── Medication instructions ───────────────────────────────────────────────────
+
 function buildMedicationInstructions(
   medicationRequests: fhirR4.MedicationRequest[],
   level: ReadingLevel,
+  applyExpansion: boolean,
 ): MedicationInstruction[] {
   return medicationRequests.map((req) => {
     const coding = req.medicationCodeableConcept?.coding ?? [];
@@ -150,16 +185,16 @@ function buildMedicationInstructions(
         ? `${repeat.frequency} time(s) per ${repeat.period} ${repeat.periodUnit}`
         : (dosageInstruction?.timing?.code?.text ?? "As directed");
 
-    return {
-      name: medName,
-      dosage,
-      frequency,
-      instructions: [purpose, notes].filter(Boolean).join(". "),
-    };
+    const rawInstructions = [purpose, notes].filter(Boolean).join(". ");
+    const instructions = applyExpansion ? expandAbbreviations(rawInstructions) : rawInstructions;
+
+    return { name: medName, dosage, frequency, instructions };
   });
 }
 
-function buildWarningSigns(conditions: fhirR4.Condition[]): string[] {
+// ── Warning signs ─────────────────────────────────────────────────────────────
+
+function buildWarningSigns(conditions: fhirR4.Condition[], applyExpansion: boolean): string[] {
   const codes = extractSnomedCodes(conditions);
   const defaultSigns = WARNING_SIGNS["default"] ?? [];
   const seen = new Set<string>();
@@ -176,22 +211,26 @@ function buildWarningSigns(conditions: fhirR4.Condition[]): string[] {
 
   if (codes.length === 0) {
     addLines(defaultSigns);
-    return lines;
+  } else {
+    for (const code of codes) {
+      addLines(WARNING_SIGNS[code] ?? defaultSigns);
+    }
   }
 
-  for (const code of codes) {
-    addLines(WARNING_SIGNS[code] ?? defaultSigns);
-  }
-  return lines;
+  return applyExpansion ? lines.map(expandAbbreviations) : lines;
 }
 
-function buildActivityRestrictions(conditions: fhirR4.Condition[]): string[] {
+// ── Activity restrictions ─────────────────────────────────────────────────────
+
+function buildActivityRestrictions(conditions: fhirR4.Condition[], applyExpansion: boolean): string[] {
   const codes = extractSnomedCodes(conditions);
   const defaultActivity = ACTIVITY_RESTRICTIONS["default"] ?? [];
   const seen = new Set<string>();
   const lines: string[] = [];
 
-  if (codes.length === 0) return defaultActivity;
+  if (codes.length === 0) {
+    return applyExpansion ? defaultActivity.map(expandAbbreviations) : defaultActivity;
+  }
 
   for (const code of codes) {
     for (const line of ACTIVITY_RESTRICTIONS[code] ?? defaultActivity) {
@@ -201,18 +240,20 @@ function buildActivityRestrictions(conditions: fhirR4.Condition[]): string[] {
       }
     }
   }
-  return lines;
+  return applyExpansion ? lines.map(expandAbbreviations) : lines;
 }
 
-function buildDietGuidance(conditions: fhirR4.Condition[]): string {
+// ── Diet guidance ─────────────────────────────────────────────────────────────
+
+function buildDietGuidance(conditions: fhirR4.Condition[], applyExpansion: boolean): string {
   const codes = extractSnomedCodes(conditions);
   const defaultDiet = DIET_GUIDANCE["default"] ?? "Eat a balanced diet. Stay hydrated.";
 
   for (const code of codes) {
     const guidance = DIET_GUIDANCE[code];
-    if (guidance) return guidance;
+    if (guidance) return applyExpansion ? expandAbbreviations(guidance) : guidance;
   }
-  return defaultDiet;
+  return applyExpansion ? expandAbbreviations(defaultDiet) : defaultDiet;
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
@@ -229,11 +270,33 @@ export function generateDischargeInstructions(
     (m) => m.status === "active",
   );
 
-  return {
-    visitSummary: buildVisitSummary(patient, encounter, conditions, procedures, readingLevel),
-    medications: buildMedicationInstructions(medicationRequests, readingLevel),
-    warningSigns: buildWarningSigns(conditions),
-    activityRestrictions: buildActivityRestrictions(conditions),
-    dietGuidance: buildDietGuidance(conditions),
+  const admitDate = encounter.period?.start ? toDate(encounter.period.start) : null;
+  const dischargeDate = (encounter.period?.end ? toDate(encounter.period.end) : null) ?? new Date();
+  const los = admitDate ? differenceInDays(dischargeDate, admitDate) : null;
+
+  const diagnoses = conditions
+    .map((c) => c.code?.text ?? c.code?.coding?.[0]?.display ?? "")
+    .filter(Boolean);
+  const procedureNames = procedures
+    .map((p) => p.code?.text ?? p.code?.coding?.[0]?.display ?? "")
+    .filter(Boolean);
+
+  const clinician: ClinicianInstructions = {
+    visitSummary: buildClinicianVisitSummary(patient, encounter, conditions, procedures),
+    diagnoses,
+    procedures: procedureNames,
+    lengthOfStay: los,
+    medications: buildMedicationInstructions(medicationRequests, readingLevel, false),
   };
+
+  const patientBlock: PatientInstructions = {
+    visitSummary: buildPatientVisitSummary(encounter, conditions, procedures, readingLevel),
+    medications: buildMedicationInstructions(medicationRequests, readingLevel, true),
+    warningSigns: buildWarningSigns(conditions, true),
+    activityRestrictions: buildActivityRestrictions(conditions, true),
+    dietGuidance: buildDietGuidance(conditions, true),
+    askCareTeamReminder: ASK_CARE_TEAM_REMINDER,
+  };
+
+  return { clinician, patient: patientBlock };
 }

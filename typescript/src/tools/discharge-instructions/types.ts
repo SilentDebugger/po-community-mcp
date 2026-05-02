@@ -10,12 +10,29 @@ export interface MedicationInstruction {
   warnings?: string[];
 }
 
-export interface DischargeInstructionsResult {
+export interface ClinicianInstructions {
+  /** Full clinical detail — no jargon expansion, raw FHIR text preserved. */
+  visitSummary: string;
+  diagnoses: string[];
+  procedures: string[];
+  lengthOfStay: number | null;
+  medications: MedicationInstruction[];
+}
+
+export interface PatientInstructions {
+  /** Second-person ("you/your") tone, all abbreviations expanded. */
   visitSummary: string;
   medications: MedicationInstruction[];
   warningSigns: string[];
   activityRestrictions: string[];
   dietGuidance: string;
+  /** Universal hardcoded reminder appended to every patient packet. */
+  askCareTeamReminder: string;
+}
+
+export interface DischargeInstructionsResult {
+  clinician: ClinicianInstructions;
+  patient: PatientInstructions;
 }
 
 export interface DischargeInstructionsInput {
