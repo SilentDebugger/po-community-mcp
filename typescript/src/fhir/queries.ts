@@ -136,12 +136,17 @@ export async function fetchDischargeFhirData(
   ]);
 
   if (!patient) {
-    throw new Error(`Patient ${patientId} not found`);
+    throw new Error(`PATIENT_NOT_FOUND: No patient record found for ID "${patientId}". Verify the patient ID is correct.`);
   }
 
   const encounter = inpatientEncounters[0];
   if (!encounter) {
-    throw new Error(`No inpatient encounter found for patient ${patientId}`);
+    throw new Error(
+      `NO_INPATIENT_ENCOUNTER: No inpatient hospital encounter found for patient "${patientId}". ` +
+      `BuildDischargePacket requires a completed or in-progress inpatient admission (encounter class IMP). ` +
+      `This patient's records contain only outpatient or ambulatory visits. ` +
+      `Discharge packets cannot be generated for outpatient-only patients.`,
+    );
   }
 
   return {

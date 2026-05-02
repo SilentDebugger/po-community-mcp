@@ -37,7 +37,13 @@ class DischargePacketTool implements IMcpTool {
       },
       async ({ patientId, readingLevel }) => {
         const id = resolvePatientId(patientId, req);
-        const data = await fetchDischargeFhirData(req, id);
+        let data;
+        try {
+          data = await fetchDischargeFhirData(req, id);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          return McpResponse.error(message);
+        }
         const result = await buildDischargePacket(data, readingLevel);
         return McpResponse.json(result);
       },
