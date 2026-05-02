@@ -21,9 +21,23 @@ export const MEDICAL_ABBREVIATIONS: Record<string, string> = {
   MI: "heart attack (MI)",
   UTI: "urinary tract infection (UTI)",
   DVT: "deep vein thrombosis (DVT)",
+  COPD: "chronic lung disease (COPD)",
+  CKD: "chronic kidney disease (CKD)",
 
-  // ── Procedure shorthands ──────────────────────────────────────────────────
+  // ── Procedure / imaging shorthands ───────────────────────────────────────
   cath: "catheterization",
+  ORIF: "fracture repair surgery (ORIF — Open Reduction Internal Fixation)",
+  CABG: "heart bypass surgery (CABG)",
+  PCI: "heart artery procedure (PCI)",
+  CT: "CT scan",
+  MRI: "MRI scan",
+  EKG: "heart tracing (ECG)",
+  ECG: "heart tracing (ECG)",
+  Doppler: "ultrasound to check blood flow (Doppler)",
+
+  // ── Emergency settings ────────────────────────────────────────────────────
+  ED: "emergency department (ED)",
+  ER: "emergency department (ED)",
 
   // ── Dosing frequency ──────────────────────────────────────────────────────
   BID: "twice daily (BID)",
