@@ -17,7 +17,7 @@ export {
   CONDITION_FOLLOW_UP_RULES,
   PROCEDURE_FOLLOW_UP_RULES,
 } from "./follow-up-rules";
-export type { FollowUpRule } from "./follow-up-rules";
+export type { FollowUpRule, FollowUpItem, FollowUpPriority } from "./follow-up-rules";
 
 export { WARNING_SIGNS } from "./warning-signs";
 

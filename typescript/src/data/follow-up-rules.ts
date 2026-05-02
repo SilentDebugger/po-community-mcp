@@ -6,7 +6,19 @@
  * Guidelines basis: standard post-discharge care protocols.
  */
 
-import type { FollowUpItem } from "../tools/follow-up-plan/types";
+export type FollowUpPriority = "routine" | "high" | "urgent" | "emergent";
+
+export interface FollowUpItem {
+  type: "visit" | "lab" | "imaging" | "monitoring";
+  specialty?: string;
+  timeframe: string;
+  reason: string;
+  priority: FollowUpPriority;
+  /** For imaging items — the imaging study name (e.g. "Chest X-ray") */
+  study?: string;
+  /** For lab items — the list of tests to order */
+  tests?: string[];
+}
 
 export interface FollowUpRule {
   items: FollowUpItem[];
