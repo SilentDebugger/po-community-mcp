@@ -1,6 +1,6 @@
 import { DischargeFhirData } from "../../fhir/queries";
 import { reconcileMedications } from "../reconcile-medications/service";
-import { generateDischargeInstructions } from "../discharge-instructions/service";
+import { generateDischargeInstructions, ASK_CARE_TEAM_REMINDER } from "../discharge-instructions/service";
 import { assessReadmissionRisk } from "../readmission-risk/service";
 import { planFollowUp } from "../follow-up-plan/service";
 import { auditMedCosts } from "../audit-med-costs/service";
@@ -32,8 +32,7 @@ const EMPTY_PATIENT: PatientInstructions = {
   warningSigns: [],
   activityRestrictions: [],
   dietGuidance: "",
-  askCareTeamReminder:
-    "Before you leave the hospital, please ask your care team about: driving, bathing, wound care, and when you can return to work.",
+  askCareTeamReminder: ASK_CARE_TEAM_REMINDER,
 };
 
 function isError<T>(result: SubToolResult<T>): result is { error: string } {

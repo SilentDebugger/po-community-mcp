@@ -1,6 +1,7 @@
 import { fhirR4 } from "@smile-cdr/fhirts";
 import { DRUG_INTERACTIONS } from "../../data/drug-interactions";
 import { expandAbbreviations } from "../../utils/expand-abbreviations";
+import { RXNORM_SYSTEM } from "../../fhir/constants";
 import {
   ReconcileMedicationsInput,
   ReconcileMedicationsOutput,
@@ -11,8 +12,6 @@ import {
   InteractionWarning,
   AllergyConflict,
 } from "./types";
-
-const RXNORM_SYSTEM = "http://www.nlm.nih.gov/research/umls/rxnorm";
 
 function toDateString(value: string | Date | undefined): string | undefined {
   if (value === undefined) return undefined;
@@ -60,7 +59,9 @@ export function reconcileMedications(
 
   const periodStart = encounter.period?.start;
   if (!periodStart) {
-    throw new Error("FHIR_RESOURCE_NOT_FOUND");
+    throw new Error(
+      "Encounter period.start is missing — cannot determine medication timeline for reconciliation",
+    );
   }
 
   const admissionDate = new Date(toDateString(periodStart) ?? periodStart);

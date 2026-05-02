@@ -3,3 +3,6 @@ export const FHIR_HEADERS = {
   ACCESS_TOKEN: "x-fhir-access-token",
   PATIENT_ID: "x-patient-id",
 } as const;
+
+export const SNOMED_SYSTEM = "http://snomed.info/sct";
+export const RXNORM_SYSTEM = "http://www.nlm.nih.gov/research/umls/rxnorm";

@@ -3,18 +3,12 @@ import {
   CONDITION_FOLLOW_UP_RULES,
   PROCEDURE_FOLLOW_UP_RULES,
 } from "../../data/follow-up-rules";
+import { getSnomedCode } from "../../data";
 import { expandAbbreviations, expandAbbreviationToken } from "../../utils/expand-abbreviations";
 import type { FollowUpItem, FollowUpPlanInput, FollowUpPlanResult } from "./types";
 
-const SNOMED_SYSTEM = "http://snomed.info/sct";
 const ABNORMAL_CODES = new Set(["H", "L", "HH", "LL"]);
 const ESCALATION_PRIORITIES = new Set<string>(["high", "urgent", "emergent"]);
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function getSnomedCode(coding?: fhirR4.Coding[]): string | undefined {
-  return coding?.find((c) => c.system === SNOMED_SYSTEM)?.code;
-}
 
 /**
  * Builds a set of normalized coverage tokens from active CarePlans.

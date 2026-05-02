@@ -1,5 +1,5 @@
 import { fhirR4 } from "@smile-cdr/fhirts";
-import { ReconcileMedicationsResult } from "../reconcile-medications/types";
+import { ReconcileMedicationsOutput } from "../reconcile-medications/types";
 import { ClinicianInstructions, PatientInstructions } from "../discharge-instructions/types";
 import { ReadmissionRiskResult } from "../readmission-risk/types";
 import { FollowUpPlanResult } from "../follow-up-plan/types";
@@ -15,7 +15,7 @@ export interface SimplifiedFollowUpItem {
 
 export interface ClinicianPacket {
   clinicalSummary: ClinicianInstructions;
-  medicationReconciliation: SubToolResult<ReconcileMedicationsResult>;
+  medicationReconciliation: SubToolResult<ReconcileMedicationsOutput>;
   readmissionRisk: SubToolResult<ReadmissionRiskResult>;
   followUpPlan: SubToolResult<FollowUpPlanResult>;
   costSavings: SubToolResult<AuditMedCostsResult>;

@@ -17,8 +17,9 @@ import {
   WARNING_SIGNS,
 } from "../../data";
 import { expandAbbreviations } from "../../utils/expand-abbreviations";
+import { SNOMED_SYSTEM, RXNORM_SYSTEM } from "../../fhir/constants";
 
-const ASK_CARE_TEAM_REMINDER =
+export const ASK_CARE_TEAM_REMINDER =
   "Before you leave the hospital, please ask your care team about: driving, bathing, wound care, and when you can return to work.";
 
 // ── Private helpers ───────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ function extractSnomedCodes(conditions: fhirR4.Condition[]): string[] {
   return conditions.flatMap(
     (c) =>
       c.code?.coding
-        ?.filter((coding) => coding.system === "http://snomed.info/sct" && coding.code)
+        ?.filter((coding) => coding.system === SNOMED_SYSTEM && coding.code)
         .map((coding) => coding.code as string) ?? [],
   );
 }
@@ -152,7 +153,7 @@ function buildMedicationInstructions(
   return medicationRequests.map((req) => {
     const coding = req.medicationCodeableConcept?.coding ?? [];
     const rxNormCoding = coding.find(
-      (c) => c.system === "http://www.nlm.nih.gov/research/umls/rxnorm",
+      (c) => c.system === RXNORM_SYSTEM,
     );
     const rxNormCode = rxNormCoding?.code ?? "";
     const medName =

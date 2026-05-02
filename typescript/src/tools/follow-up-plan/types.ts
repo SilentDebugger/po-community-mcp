@@ -3,7 +3,7 @@ import { fhirR4 } from "@smile-cdr/fhirts";
 export type FollowUpPriority = "routine" | "high" | "urgent" | "emergent";
 
 export interface FollowUpItem {
-  type: string;
+  type: "visit" | "lab" | "imaging" | "monitoring";
   specialty?: string;
   timeframe: string;
   reason: string;
