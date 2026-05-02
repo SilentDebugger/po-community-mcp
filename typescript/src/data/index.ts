@@ -1,8 +1,8 @@
 export { DRUG_INTERACTIONS } from "./drug-interactions";
 export type { DrugInteraction } from "./drug-interactions";
 
-export { CHARLSON_CONDITIONS } from "./charlson-mapping";
-export type { CharlsonCondition } from "./charlson-mapping";
+export { CHARLSON_MAP, charlsonSumToLaceC, getSnomedCode } from "./charlson-mapping";
+export type { CharlsonEntry } from "./charlson-mapping";
 
 export {
   COST_TIERS,
@@ -27,3 +27,5 @@ export { DIET_GUIDANCE } from "./diet-guidance";
 
 export { MED_INSTRUCTIONS, RXNORM_TO_DRUG_CLASS, DRUG_CLASS_INSTRUCTIONS } from "./med-instructions";
 export type { MedInstruction, DrugClassInstruction } from "./med-instructions";
+
+export { MEDICAL_ABBREVIATIONS } from "./medical-abbreviations";

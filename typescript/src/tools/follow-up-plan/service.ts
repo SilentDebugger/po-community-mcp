@@ -3,17 +3,12 @@ import {
   CONDITION_FOLLOW_UP_RULES,
   PROCEDURE_FOLLOW_UP_RULES,
 } from "../../data/follow-up-rules";
-import { MEDICAL_ABBREVIATIONS } from "../../data/medical-abbreviations";
+import { expandAbbreviations, expandAbbreviationToken } from "../../utils/expand-abbreviations";
 import type { FollowUpItem, FollowUpPlanInput, FollowUpPlanResult } from "./types";
 
 const SNOMED_SYSTEM = "http://snomed.info/sct";
 const ABNORMAL_CODES = new Set(["H", "L", "HH", "LL"]);
 const ESCALATION_PRIORITIES = new Set<string>(["high", "urgent", "emergent"]);
-
-const ABBREVIATION_REGEX = new RegExp(
-  `\\b(${Object.keys(MEDICAL_ABBREVIATIONS).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`,
-  "g",
-);
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -71,20 +66,12 @@ function isCoveredByCarePlan(item: FollowUpItem, coverage: Set<string>): boolean
 
 // ── Abbreviation expansion (patient-facing output) ──────────────────────────
 
-function expandText(text: string): string {
-  ABBREVIATION_REGEX.lastIndex = 0;
-  return text.replace(
-    ABBREVIATION_REGEX,
-    (match) => MEDICAL_ABBREVIATIONS[match] ?? match,
-  );
-}
-
 function expandItem(item: FollowUpItem): FollowUpItem {
   return {
     ...item,
-    reason: expandText(item.reason),
-    ...(item.specialty && { specialty: expandText(item.specialty) }),
-    ...(item.tests && { tests: item.tests.map((t) => MEDICAL_ABBREVIATIONS[t] ?? expandText(t)) }),
+    reason: expandAbbreviations(item.reason),
+    ...(item.specialty && { specialty: expandAbbreviations(item.specialty) }),
+    ...(item.tests && { tests: item.tests.map((t) => { const expanded = expandAbbreviationToken(t); return expanded !== t ? expanded : expandAbbreviations(t); }) }),
   };
 }
 
