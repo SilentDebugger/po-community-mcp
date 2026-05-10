@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Request } from "express";
 import { z } from "zod";
 import { fhirR4 } from "@smile-cdr/fhirts";
