@@ -22,17 +22,28 @@ export function loadConfig(): Config {
 }
 
 export function getAllowedHosts(config: Config): string[] {
-  switch (config.PO_ENV) {
-    case "dev":
-      return ["ts.fhir-mcp.dev.promptopinion.ai"];
-    case "prod":
-      return ["ts.fhir-mcp.promptopinion.ai"];
-    default: {
-      const hosts = ["localhost"];
-      if (config.ALLOWED_HOST) {
-        hosts.push(config.ALLOWED_HOST);
-      }
-      return hosts;
+  // Always allow loopback so the container's own HEALTHCHECK and the
+  // platform's internal health probes (Sevalla, Kubernetes-style probes,
+  // etc.) succeed regardless of which public hostname is configured.
+  const loopbackHosts = ["localhost", "127.0.0.1", "[::1]"];
+
+  const envHosts: string[] = (() => {
+    switch (config.PO_ENV) {
+      case "dev":
+        return ["ts.fhir-mcp.dev.promptopinion.ai"];
+      case "prod":
+        return ["ts.fhir-mcp.promptopinion.ai"];
+      default:
+        return [];
     }
-  }
+  })();
+
+  // ALLOWED_HOST may be a single host or a comma-separated list.
+  // This is how Sevalla / custom-domain deployments inject their public hostname.
+  const extraHosts = (config.ALLOWED_HOST ?? "")
+    .split(",")
+    .map((h) => h.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set([...loopbackHosts, ...envHosts, ...extraHosts]));
 }
